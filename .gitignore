@@ -1,0 +1,22 @@
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Ambiente / segredos
+.env
+*.pem
+credentials
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
