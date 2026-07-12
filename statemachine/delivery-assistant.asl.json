@@ -1,0 +1,136 @@
+linha1
+  indentada2
+    indentada3
+{
+  "a": 1
+}{
+  "Comment": "Assistente de Delivery - orquestra validacao, interpretacao via Amazon Bedrock e roteamento da entrega.",
+  "StartAt": "ValidarPedido",
+  "States": {
+    "ValidarPedido": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ValidarPedidoFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultSelector": {
+        "valido.$": "$.Payload.valido",
+        "motivo.$": "$.Payload.motivo",
+        "pedido.$": "$.Payload.pedido"
+      },
+      "ResultPath": "$.validacao",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "TratarErro", "ResultPath": "$.erro" }
+      ],
+      "Next": "PedidoEhValido"
+    },
+
+    "PedidoEhValido": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.validacao.valido", "BooleanEquals": true, "Next": "AssistenteBedrock" }
+      ],
+      "Default": "FalhaValidacao"
+    },
+
+    "FalhaValidacao": {
+      "Type": "Fail",
+      "Error": "PedidoInvalido",
+      "Cause": "O pedido nao passou na validacao (itens, endereco ou valor minimo)."
+    },
+
+    "AssistenteBedrock": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::bedrock:invokeModel",
+      "Parameters": {
+        "ModelId": "anthropic.claude-3-haiku-20240307-v1:0",
+        "Body": {
+          "anthropic_version": "bedrock-2023-05-31",
+          "max_tokens": 300,
+          "messages": [
+            {
+              "role": "user",
+              "content.$": "States.Format('Voce e um assistente de delivery. Analise a mensagem do cliente e responda em JSON com os campos respostaCliente (texto curto e simpatico) e prioridade (EXPRESS ou PADRAO). Mensagem: {}', $.mensagem)"
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.bedrock",
+      "Retry": [
+        {
+          "ErrorEquals": ["Bedrock.ThrottlingException", "States.TaskFailed"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "TratarErro", "ResultPath": "$.erro" }
+      ],
+      "Next": "DecidirRota"
+    },
+
+    "DecidirRota": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.bedrock.Body.content[0].text",
+          "StringMatches": "*EXPRESS*",
+          "Next": "RotaExpressa"
+        }
+      ],
+      "Default": "RotaPadrao"
+    },
+
+    "RotaExpressa": {
+      "Type": "Pass",
+      "Result": { "prioridade": "EXPRESS", "sla": "30 min", "taxaEntrega": 12.9 },
+      "ResultPath": "$.rota",
+      "Next": "NotificarCliente"
+    },
+
+    "RotaPadrao": {
+      "Type": "Pass",
+      "Result": { "prioridade": "PADRAO", "sla": "60 min", "taxaEntrega": 6.9 },
+      "ResultPath": "$.rota",
+      "Next": "NotificarCliente"
+    },
+
+    "NotificarCliente": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${NotificarClienteFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.notificacao",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "TratarErro", "ResultPath": "$.erro" }
+      ],
+      "End": true
+    },
+
+    "TratarErro": {
+      "Type": "Fail",
+      "Error": "FalhaNoFluxo",
+      "Cause": "Ocorreu um erro em uma das etapas do assistente de delivery."
+    }
+  }
+}
