@@ -1,0 +1,8 @@
+{
+  "pedidoId": "PED-1042",
+  "cliente": { "nome": "Flávio", "telefone": "+55 11 99999-0000" },
+  "mensagem": "Quero uma pizza grande de calabresa sem cebola, entrega o mais rápido possível",
+  "itens": [{ "nome": "Pizza grande calabresa", "quantidade": 1, "preco": 54.9 }],
+  "endereco": "Av. Paulista, 1000 - São Paulo/SP",
+  "valorTotal": 54.9
+}
