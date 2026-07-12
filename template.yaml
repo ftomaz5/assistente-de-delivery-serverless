@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Assistente de Delivery Serverless — AWS Step Functions + Amazon Bedrock.
+  Orquestra validacao de pedido, interpretacao via Bedrock e roteamento da entrega.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 128
+    Architectures:
+      - x86_64
+
+Resources:
+
+  # ---------- Topico SNS para notificacoes ----------
+  NotificacaoTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: delivery-notificacoes
+
+  # ---------- Lambda: validar pedido ----------
+  ValidarPedidoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: delivery-validar-pedido
+      CodeUri: src/validar_pedido/
+      Handler: lambda_function.lambda_handler
+
+  # ---------- Lambda: notificar cliente ----------
+  NotificarClienteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: delivery-notificar-cliente
+      CodeUri: src/notificar_cliente/
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref NotificacaoTopic
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotificacaoTopic.TopicName
+
+  # ---------- State Machine ----------
+  DeliveryAssistantStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: assistente-de-delivery
+      Type: STANDARD
+      DefinitionUri: statemachine/delivery-assistant.asl.json
+      DefinitionSubstitutions:
+        ValidarPedidoFunctionArn: !GetAtt ValidarPedidoFunction.Arn
+        NotificarClienteFunctionArn: !GetAtt NotificarClienteFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ValidarPedidoFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotificarClienteFunction
+        - Statement:
+            - Sid: BedrockInvoke
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+
+Outputs:
+  StateMachineArn:
+    Description: ARN da maquina de estados do assistente de delivery
+    Value: !Ref DeliveryAssistantStateMachine
+  NotificacaoTopicArn:
+    Description: ARN do topico SNS de notificacoes
+    Value: !Ref NotificacaoTopic
