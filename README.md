@@ -7,6 +7,7 @@
 ![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-232F3E?logo=amazonaws&logoColor=white)
 ![IaC](https://img.shields.io/badge/IaC-AWS%20SAM-orange?logo=amazonaws&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![CI](https://github.com/ftomaz5/assistente-de-delivery-serverless/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
@@ -106,6 +107,42 @@ aws stepfunctions start-execution \
 
 ---
 
+## 🔧 Variáveis de ambiente
+
+| Variável | Onde é usada | Descrição | Valor padrão |
+|----------|--------------|-----------|--------------|
+| `TOPIC_ARN` | Lambda `NotificarCliente` | ARN do tópico SNS de notificações. Injetado automaticamente pelo SAM via `DefinitionSubstitutions`/`Environment`. | *(vazio → apenas log)* |
+| `AWS_REGION` / `AWS_DEFAULT_REGION` | runtime AWS | Região onde Bedrock e SNS estão habilitados (ex.: `us-east-1`). | definido pela conta/CLI |
+| `VALOR_MINIMO` | Lambda `ValidarPedido` (constante) | Valor mínimo do pedido em R$. Hoje fixo em `15.00` no código. | `15.00` |
+
+> Segredos e credenciais **nunca** ficam no repositório — use `aws configure`,
+> perfis IAM ou variáveis de ambiente locais (`.env` está no `.gitignore`).
+
+---
+
+## 🧑‍💻 Desenvolvimento e testes locais
+
+```bash
+# 1. Ambiente virtual + dependências de desenvolvimento
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# 2. Lint e testes unitários (com cobertura)
+ruff check .
+pytest --cov=src --cov-report=term-missing
+
+# 3. Validar a infraestrutura (template SAM + máquina de estados)
+cfn-lint template.yaml
+
+# 4. Invocar uma Lambda localmente com o evento de exemplo (requer Docker + SAM)
+sam local invoke ValidarPedidoFunction --event events/pedido-exemplo.json
+```
+
+Os testes cobrem **100%** das duas funções Lambda e ainda validam que o JSON da
+máquina de estados está bem-formado, evitando regressões de deploy.
+
+---
+
 ## 🧪 Exemplo de entrada
 
 ```json
@@ -152,6 +189,7 @@ O modelo *serverless* é **pay-per-use**. Estimativa para uso de estudo/portfól
 
 ```
 assistente-de-delivery-serverless/
+├── .github/workflows/ci.yml          # Pipeline CI (lint + testes + cfn-lint)
 ├── README.md
 ├── template.yaml                     # Infra como código (AWS SAM)
 ├── statemachine/
@@ -161,8 +199,16 @@ assistente-de-delivery-serverless/
 │   │   └── lambda_function.py
 │   └── notificar_cliente/
 │       └── lambda_function.py
+├── tests/                            # Testes unitários (pytest, 100% de cobertura)
+│   ├── conftest.py
+│   ├── test_validar_pedido.py
+│   ├── test_notificar_cliente.py
+│   └── test_statemachine.py
 ├── events/
 │   └── pedido-exemplo.json           # Payload de teste
+├── requirements-dev.txt              # Dependências de desenvolvimento/testes
+├── ruff.toml                         # Configuração do linter
+├── pytest.ini
 ├── .gitignore
 └── LICENSE
 ```
