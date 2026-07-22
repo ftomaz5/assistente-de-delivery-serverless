@@ -1,9 +1,4 @@
-linha1
-  indentada2
-    indentada3
 {
-  "a": 1
-}{
   "Comment": "Assistente de Delivery - orquestra validacao, interpretacao via Amazon Bedrock e roteamento da entrega.",
   "StartAt": "ValidarPedido",
   "States": {
