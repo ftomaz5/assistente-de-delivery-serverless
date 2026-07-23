@@ -2,5 +2,5 @@
 boto3==1.35.76
 pytest==8.3.4
 pytest-cov==6.0.0
-ruff==0.8.4
+ruff==0.15.22
 cfn-lint==1.22.3
