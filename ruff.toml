@@ -1,0 +1,8 @@
+# Configuração do Ruff (linter + formatter) para o projeto.
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+# Lambdas usam prints para CloudWatch Logs; handlers têm assinatura fixa.
+ignore = ["E501"]
